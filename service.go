@@ -1,9 +1,9 @@
 package main
 
 import (
-	// "bytes"
+	"bytes"
 	"encoding/json"
-	// "fmt"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -91,15 +91,16 @@ func receiveConfig(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err)
 		}
-		//log.Printf(string(body))
+		//fmt.Printf(string(body))
 		err = json.Unmarshal(body, &conf)
 		if err != nil {
-			log.Printf("config payload is wrong")
+			fmt.Printf("config payload wrong")
+			log.Printf("%s config payload is wrong", os.Args[0])
 			panic(err)
 		}
-		log.Printf("received a new service config deployment")
+		log.Printf("%s received a new service config deployment",  os.Args[0])
 	default:
-		log.Printf("sorry, only POST method is supported.")
+		fmt.Fprintf(w, "sorry, only POST method is supported.")
 	}
 	defer r.Body.Close()
 }
@@ -115,9 +116,10 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 
 
 func sayHello(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
 	reqcount++
-	log.Printf("it's the %d call\n", reqcount)
-	log.Printf("what I did:\n")
+	fmt.Fprintf(&buf, "it's the %d call\n", reqcount)
+	fmt.Fprintf(&buf, "what I did:\n")
 	// first call all callees we have in the config with the multiplicity given
 	failures := false
 
@@ -126,11 +128,13 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 			for i := 0; i < element.Count; i++ {
 				req, err := http.NewRequest("GET", element.Adr, nil)
 				if err != nil {
-					log.Fatal("error reading request. ", err)
+					// os.Args[0] to get the current exe name
+					log.Printf("%s error reading request.", os.Args[0])
+					os.Exit(1)
 				}
 				if conf.Proxy {
-					log.Printf("dt header: %s ", r.Header.Get("X-Dynatrace"))
-					log.Printf("RemoteAddr: %s ", r.RemoteAddr)
+					log.Printf("%s dt header: %s ", os.Args[0], r.Header.Get("X-Dynatrace"))
+					log.Printf("%s RemoteAddr: %s ", os.Args[0], r.RemoteAddr)
 					req.Header.Set("X-Dynatrace", r.Header.Get("X-Dynatrace"))
 					req.Header.Set("x-forwarded-for", r.RemoteAddr)
 					req.Header.Set("forwarded", r.RemoteAddr)
@@ -141,21 +145,22 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 
 				resp, err := client.Do(req)
 				if err != nil {
-					log.Fatal("error reading response. ", err)
+					log.Printf("%s error reading response.", os.Args[0])
+					os.Exit(1)
 				} else {
 					if resp.StatusCode != 200 {
-						log.Printf("got a bad return")
+						log.Printf("%s got a bad return", os.Args[0])
 						failures = true
 					}
 				}
 				defer resp.Body.Close()
 			}
-			log.Printf("called %s %d times\n", element.Adr, element.Count)
+			fmt.Fprintf(&buf, "called %s %d times\n", element.Adr, element.Count)
 		}
 	}
 	// then check if we should crash the process
 	if conf.CrashConfig.Code != 0 {
-		//log.Fatalf("Exiting")
+		log.Printf("%s cashed.", os.Args[0])
 		panic("a problem")
 		//os.Exit(conf.CrashConfig.Code)
 	}
@@ -163,7 +168,7 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 	if conf.SlowdownConfig.SlowdownMillis != 0 && conf.SlowdownConfig.Count > 0 {
 		time.Sleep(time.Duration(conf.SlowdownConfig.SlowdownMillis) * time.Millisecond)
 		conf.SlowdownConfig.Count = conf.SlowdownConfig.Count - 1
-		log.Printf("sleeped for %d millis\n", conf.SlowdownConfig.SlowdownMillis)
+		fmt.Fprintf(&buf, "sleeped for %d millis\n", conf.SlowdownConfig.SlowdownMillis)
 	}
 	// then check if we should increase resource consumption
 	if conf.ResourceConfig.Severity != 0 && conf.ResourceConfig.Count > 0 {
@@ -175,9 +180,9 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		log.Printf("allocated %d 100x100 matrices with random values\n", conf.ResourceConfig.Severity)
+		fmt.Fprintf(&buf, "allocated %d 100x100 matrices with random values\n", conf.ResourceConfig.Severity)
 		conf.ResourceConfig.Count = conf.ResourceConfig.Count - 1
-		log.Printf("high resource consumption service call")
+		log.Printf("%s high resource consumption service call", os.Args[0])
 	}
 	// then check if the should return an error response code
 	if failures || (conf.ErrorConfig.ResponseCode != 0 && conf.ErrorConfig.Count > 0) {
@@ -220,11 +225,13 @@ func main() {
 	port := 8080
 	if len(os.Args) > 1 {
 		arg := os.Args[1]
-		log.Printf("Start demo service at port: %s\n", arg)
+		fmt.Printf("Start demo service at port: %s\n", arg)
 		i1, err := strconv.Atoi(arg)
 		if err == nil {
 			port = i1
 		}
+	} else {
+		fmt.Printf("Start demo service at default port: %d\n", port)
 	}
 	readEnvConfig()
 
