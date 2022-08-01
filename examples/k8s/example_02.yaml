@@ -110,6 +110,10 @@ spec:
           value: "http://demoservice-three:8080"
         - name: Callees_Count
           value: "1"
+        #- name: ErrorConfig_ResponseCode
+        #  value: "500"
+        #- name: ErrorConfig_Count
+        #  value: "10000"
         resources:
           requests:
             cpu: 50m
